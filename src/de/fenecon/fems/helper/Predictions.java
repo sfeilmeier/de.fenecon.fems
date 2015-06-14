@@ -1,4 +1,4 @@
-package de.fenecon.fems.types;
+package de.fenecon.fems.helper;
 
 import java.io.FileWriter;
 import java.io.IOException;

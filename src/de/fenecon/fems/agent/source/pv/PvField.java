@@ -1,4 +1,6 @@
-package de.fenecon.fems.types;
+package de.fenecon.fems.agent.source.pv;
+
+import de.fenecon.fems.helper.Field;
 
 public class PvField extends Field {
 

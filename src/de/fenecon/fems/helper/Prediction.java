@@ -1,4 +1,4 @@
-package de.fenecon.fems.types;
+package de.fenecon.fems.helper;
 
 public class Prediction implements Comparable<Prediction> {
 	private final double value;
@@ -19,8 +19,7 @@ public class Prediction implements Comparable<Prediction> {
 
 	@Override
 	public String toString() {
-		return "Prediction [value=" + value + ", lagWindowSize="
-				+ lagWindowSize + "]";
+		return String.format("Prediction [value=%.2f, lag=%.1f]", value, lagWindowSize);
 	}
 
 	@Override

@@ -3,14 +3,9 @@ package de.fenecon.fems;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 
-import org.joda.time.DateTime;
-import org.joda.time.DateTimeZone;
-
-import de.fenecon.fems.types.Field;
-
 public class FemsTools {
-	public static Path getCsvPath(String fems, Field field) {
-		return Paths.get(FemsConstants.FILESPATH, fems + "_" + field + ".csv");
+	public static Path getCsvPath(String fems) {
+		return Paths.get(FemsConstants.FILESPATH, fems + ".csv");
 	}
 	
 	public static long roundTimestampToSlice(long timestamp) {

@@ -1,15 +1,14 @@
-package de.fenecon.fems.agent.source.pv;
+package de.fenecon.fems.helper;
 
 import de.fenecon.fems.FemsConstants;
-import de.fenecon.fems.types.Prediction;
 
-public class PvPredictionWorker implements Runnable {
-	private final PvPredictor predictor;
+public class PredictionWorker implements Runnable {
+	private final Predictor predictor;
 	private final long currentTimestamp;
 	private final double value;
-	private final PvAgent callback;
+	private final PredictionWorkerCallback callback;
 	
-	public PvPredictionWorker(PvPredictor predictor, long currentTimestamp, double value, PvAgent callback) {
+	public PredictionWorker(Predictor predictor, long currentTimestamp, double value, PredictionWorkerCallback callback) {
 		this.predictor = predictor;
 		this.currentTimestamp = currentTimestamp;
 		this.value = value;

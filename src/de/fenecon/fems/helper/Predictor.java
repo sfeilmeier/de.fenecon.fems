@@ -1,13 +1,11 @@
-package de.fenecon.fems.agent.source.pv;
+package de.fenecon.fems.helper;
 
 import org.encog.ml.MLRegression;
 import org.encog.ml.data.MLData;
 import org.encog.ml.data.versatile.NormalizationHelper;
 import org.encog.util.arrayutil.VectorWindow;
 
-import de.fenecon.fems.types.Prediction;
-
-public class PvPredictor {
+public class Predictor {
 	private final int lagWindowSize;
 	private final MLRegression method;
 	
@@ -15,7 +13,7 @@ public class PvPredictor {
 	private final VectorWindow window;
 	private final MLData input; 
 	
-	public PvPredictor(int lagWindowSize, MLRegression method, NormalizationHelper normhelper, int leadWindowSize) {
+	public Predictor(int lagWindowSize, MLRegression method, NormalizationHelper normhelper, int leadWindowSize) {
 		this.lagWindowSize = lagWindowSize;
 		this.method = method;
 		this.normhelper = normhelper;

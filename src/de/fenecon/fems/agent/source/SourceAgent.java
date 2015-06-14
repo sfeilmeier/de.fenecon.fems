@@ -1,10 +1,9 @@
 package de.fenecon.fems.agent.source;
 
-import de.fenecon.fems.types.Prediction;
-import de.fenecon.fems.types.SourceCategory;
+import de.fenecon.fems.helper.PredictionAgent;
 
-public interface SourceAgent extends Comparable<SourceAgent> {
-	Prediction getBestPredictionAtTimestamp(Long timestamp);
+public interface SourceAgent extends PredictionAgent {
 	
-	SourceCategory getSourceCategory();
+	public SourceCategory getSourceCategory();
+	
 }

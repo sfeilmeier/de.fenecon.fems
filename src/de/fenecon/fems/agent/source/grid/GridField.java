@@ -1,4 +1,6 @@
-package de.fenecon.fems.types;
+package de.fenecon.fems.agent.source.grid;
+
+import de.fenecon.fems.helper.Field;
 
 public class GridField extends Field {
 

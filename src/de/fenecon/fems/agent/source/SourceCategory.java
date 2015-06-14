@@ -1,4 +1,4 @@
-package de.fenecon.fems.types;
+package de.fenecon.fems.agent.source;
 
 public enum SourceCategory {
 	PHOTOVOLTAICS,
