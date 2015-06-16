@@ -5,22 +5,16 @@
  * which accompanies this distribution, and is available at
  * http://www.eclipse.org/legal/epl-v10.html
  */
-package de.fenecon.fems.agent.source;
+package de.fenecon.fems.agent.load;
 
-import de.fenecon.fems.helper.PredictionAgent;
+import de.fenecon.fems.agent.scheduler.SchedulerAgent;
 
 /**
- * General agent for a power source.
+ * Defines the actions that can be defined for a {@link LoadAgent} by the
+ * {@link SchedulerAgent}.
  * 
  * @author Stefan Feilmeier
  */
-public interface SourceAgent extends PredictionAgent {
-
-	/**
-	 * Gets the {@link SourceCategory} of this agent.
-	 * 
-	 * @return the {@link SourceCategory}
-	 */
-	public SourceCategory getSourceCategory();
-
+public enum LoadAction {
+	START, STOP
 }
