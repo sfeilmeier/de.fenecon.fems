@@ -7,10 +7,10 @@
  */
 package de.fenecon.fems.helper;
 
-import java.util.Set;
+import java.util.HashMap;
+import java.util.Map;
 import java.util.concurrent.ConcurrentHashMap;
-import java.util.concurrent.ExecutorService;
-import java.util.concurrent.Executors;
+import java.util.concurrent.ConcurrentSkipListSet;
 
 import de.fenecon.fems.FemsConstants;
 import de.fenecon.fems.agent.consumption.ConsumptionAgentFactory;
@@ -18,48 +18,77 @@ import de.fenecon.fems.agent.source.pv.PvAgentFactory;
 import de.fenecon.fems.ess.EssListener;
 
 /**
- * General implementation of a {@link PredictionAgent}. It manages a set of
- * {@link Predictor}s, which are queried as soon as a new value is received via
- * {@link EssListener}. The calculation of predictions is handled by separate
- * {@link PredictionWorker}s and the results sent back to this object via
- * {@link PredictionWorkerCallback}.
+ * General implementation of a {@link PredictionAgent}. It manages a
+ * {@link Predictor}, which is carrying out the actual prediction as soon as a
+ * new value is received via {@link EssListener}..
  * 
  * @author Stefan Feilmeier
  */
-public abstract class PredictionAgentImpl implements EssListener, PredictionWorkerCallback, PredictionAgent {
-	private final ExecutorService executor;
+public abstract class PredictionAgentImpl implements EssListener, PredictionAgent {
 	/** Collection of prediction results per timestamp */
-	private final ConcurrentHashMap<Long, Predictions> predictions = new ConcurrentHashMap<Long, Predictions>();
+	private final ConcurrentHashMap<Long, ConcurrentSkipListSet<Prediction>> predictionsPerTimestamp = new ConcurrentHashMap<Long, ConcurrentSkipListSet<Prediction>>();
 
 	/**
-	 * Set of predictors. One {@link Predictor} per slice as defined in
-	 * {@link FemsConstants}
+	 * The Predictor for this field
 	 */
-	private final Set<Predictor> predictors;
+	private final Predictor predictor;
 
 	/**
 	 * Creates a new {@link PredictionAgentImpl}. Use with an appropriate
 	 * implementation of {@link PredictionAgentFactory}, like
 	 * {@link ConsumptionAgentFactory} or {@link PvAgentFactory}.
 	 * 
-	 * @param predictors
-	 *            the predictors for this agent
+	 * @param predictor
+	 *            the predictor for this agent
 	 */
-	public PredictionAgentImpl(Set<Predictor> predictors) {
-		this.predictors = predictors;
-		// initialize a thread pool with one slot per predictor
-		executor = Executors.newFixedThreadPool(predictors.size());
+	public PredictionAgentImpl(Predictor predictor) {
+		this.predictor = predictor;
 	}
 
-	@Override
+	/**
+	 * Add a new prediction; overwrite existing prediction only if the lead of
+	 * the new {@link Prediction} is smaller (more accurate).
+	 * 
+	 * @param timestamp
+	 *            the timestamp of the prediction
+	 * @param prediction
+	 *            the prediction
+	 */
 	public void addPrediction(long timestamp, Prediction prediction) {
 		if (prediction == null)
 			return; // not accepting invalid predictions
-		predictions.putIfAbsent(timestamp, new Predictions());
-		Predictions existingPredictions = predictions.get(timestamp);
-		existingPredictions.addPrediction(prediction);
+		predictionsPerTimestamp.putIfAbsent(timestamp, new ConcurrentSkipListSet<Prediction>());
+		ConcurrentSkipListSet<Prediction> predictions = predictionsPerTimestamp.get(timestamp);
+		predictions.add(prediction);
 	}
 
+	/**
+	 * Gets the best prediction (= the prediction with the highest accuracy, the
+	 * smallest lead window size) from the list.
+	 * 
+	 * @return
+	 */
+	@Override
+	public Prediction getBestPredictionAtTimestamp(long timestamp) {
+		// use internal sorting of ConcurrentSkipListSet to return the most
+		// accurate prediction
+		ConcurrentSkipListSet<Prediction> predictions = predictionsPerTimestamp.get(timestamp);
+		try {
+			return predictions.first();
+		} catch (Exception e) {
+			return null;
+		}
+	}
+	
+	@Override
+	public ConcurrentSkipListSet<Prediction> getPredictionsAtTimestamp(long timestamp) {
+		ConcurrentSkipListSet<Prediction> predictions = predictionsPerTimestamp.get(timestamp);
+		if(predictions == null) {
+			return new ConcurrentSkipListSet<Prediction>();
+		}
+		return predictions;
+	}
+	
 	/**
 	 * Remove old predictions (elder than current timestamp) from the cache.
 	 * 
@@ -67,10 +96,10 @@ public abstract class PredictionAgentImpl implements EssListener, PredictionWork
 	 *            the current timestamp
 	 */
 	private void clearOldPredictions(long timestamp) {
-		for (Long oldTimestamp : predictions.keySet()) {
+		for (Long oldTimestamp : predictionsPerTimestamp.keySet()) {
 			if (oldTimestamp < timestamp) {
 				try {
-					predictions.remove(oldTimestamp);
+					predictionsPerTimestamp.remove(oldTimestamp);
 				} catch (NullPointerException e) {
 					;
 				}
@@ -86,27 +115,10 @@ public abstract class PredictionAgentImpl implements EssListener, PredictionWork
 		return getField().compareTo(o.getField());
 	}
 
-	@Override
-	public Prediction getBestPredictionAtTimestamp(Long timestamp) {
-		Predictions timestampPredictions = predictions.get(timestamp);
-		if (timestampPredictions == null) {
-			return null;
-		} else {
-			return timestampPredictions.getBestPrediction();
-		}
-	}
-
-	@Override
-	public Predictions getPredictionsAtTimestamp(Long timestamp) {
-		return predictions.get(timestamp);
-	}
-
 	/**
 	 * On arrival of a new value from {@link EssListener}, add the new value as
-	 * the final prediction (lag = 0) and execute all predictors with this new
-	 * value using {@link PredictionWorker}s. The result will be sent to
-	 * {@link PredictionAgentImpl#addPrediction()} via
-	 * {@link PredictionWorkerCallback}.
+	 * the final prediction (lead = 0) and execute the predictor with this new
+	 * value.
 	 *
 	 * @param timestamp
 	 *            the timestamp of the value
@@ -118,9 +130,10 @@ public abstract class PredictionAgentImpl implements EssListener, PredictionWork
 		// add the current value to predictions
 		addPrediction(timestamp, new Prediction(value, 0));
 		// start the workers
-		for (Predictor predictor : predictors) {
-			Runnable predictionWorker = new PredictionWorker(predictor, timestamp, value, this);
-			executor.execute(predictionWorker);
+		HashMap<Integer, Prediction> predictionsPerLead = predictor.addValueAndPredict(value);
+		for(Map.Entry<Integer, Prediction> predictionPerLead : predictionsPerLead.entrySet()) {
+			long futureTimestamp = timestamp + FemsConstants.SLICE_SECONDS * predictionPerLead.getKey();
+			addPrediction(futureTimestamp, predictionPerLead.getValue());
 		}
 		clearOldPredictions(timestamp);
 	}

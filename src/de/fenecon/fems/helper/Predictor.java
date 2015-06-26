@@ -7,10 +7,11 @@
  */
 package de.fenecon.fems.helper;
 
+import java.util.HashMap;
+
 import org.encog.ml.MLRegression;
 import org.encog.ml.data.MLData;
-import org.encog.ml.data.versatile.NormalizationHelper;
-import org.encog.util.arrayutil.VectorWindow;
+import org.encog.ml.data.basic.BasicMLData;
 
 /**
  * A wrapper around the Encog objects and methods to calculate the result of a
@@ -19,11 +20,8 @@ import org.encog.util.arrayutil.VectorWindow;
  * @author Stefan Feilmeier
  */
 public class Predictor {
-	/** The preallocated inputs to the network */
-	private final MLData input;
 	/**
-	 * The lag window size of this predictor. It represents the prediction
-	 * timeframe of this network
+	 * The lag window size of this prediction method. It represents the number of past values in the input vector for the machine learning method.
 	 */
 	private final int lagWindowSize;
 	/**
@@ -32,65 +30,59 @@ public class Predictor {
 	 */
 	private final MLRegression method;
 	/**
-	 * The Encog normalization helper used for this network. The object is
+	 * The Normalizer used for this network. The object is
 	 * loaded from a serialized file using {@link PredictionAgentFactory}
 	 */
-	private final NormalizationHelper normhelper;
-	/** The time-series window cache for this method */
-	private final VectorWindow window;
+	private final Normalizer normalizer;
+	/**
+	 * The time-series window cache for the input vector of this method
+	 */
+	private final RingCache windowCache;
 
 	/**
 	 * Creates a new Predictor. Use via {@link PredictionAgentFactory}.
 	 * 
-	 * @param lagWindowSize
-	 *            the lag window size
 	 * @param method
 	 *            the Encog prediction method
-	 * @param normhelper
-	 *            the Encog normalization helper
-	 * @param leadWindowSize
-	 *            the lead window size for the time-series window
+	 * @param lagWindowSize
+	 *            the lag window size for the time-series window
+	 * @param normalizer
+	 *            the Normalizer
 	 */
-	public Predictor(int lagWindowSize, MLRegression method, NormalizationHelper normhelper, int leadWindowSize) {
-		this.lagWindowSize = lagWindowSize;
+	public Predictor(MLRegression method, int lagWindowSize, Normalizer normalizer) {
 		this.method = method;
-		this.normhelper = normhelper;
-		this.window = new VectorWindow(leadWindowSize + 1); // allocate window
-		this.input = normhelper.allocateInputVector(leadWindowSize + 1); // allocate
-																			// input
-																			// vector
+		this.lagWindowSize = lagWindowSize;
+		this.normalizer = normalizer;
+		this.windowCache = new RingCache(lagWindowSize);
 	}
 
 	/**
-	 * Adds a new value to the time-series window and calculates a new
-	 * {@link Prediction}.
+	 * Adds a new value to the time-series window and calculates the new
+	 * {@link Prediction}s.
 	 * 
 	 * @param value
 	 *            the new value
-	 * @return the calculated prediction
+	 * @return the calculated predictions per leadWindow
 	 */
-	public synchronized Prediction addValueAndPredict(double value) {
-		double[] slice = new double[1];
-		normhelper.normalizeInputVector(new String[] { String.valueOf(value) }, slice, false);
-		window.add(slice);
+	public synchronized HashMap<Integer, Prediction> addValueAndPredict(double newValue) {
+		HashMap<Integer, Prediction> predictionsPerLead = new HashMap<Integer, Prediction>();
+		Double newNormValue = normalizer.normalize(newValue);
+		windowCache.push(newNormValue);
+		/* TODO
 		while (!window.isReady()) {
 			window.add(slice); // if window not full, just interpolate current
 								// value => better a bad prediction than none
+		} */
+		if(windowCache.isWindowReady()) {
+			MLData mlInputData = new BasicMLData(windowCache.getWindow());
+			MLData mlOutputData = method.compute(mlInputData);
+			for(int lead=1; lead<mlOutputData.size()+1; lead++) {
+				double normValue = mlOutputData.getData(lead-1);
+				double value = normalizer.denormalize(normValue);
+				predictionsPerLead.put(lead, new Prediction(value, lead));
+			}
 		}
-		window.copyWindow(input.getData(), 0);
-		MLData output = method.compute(input);
-		String predicted = normhelper.denormalizeOutputVectorToString(output)[0];
-		return new Prediction(Double.parseDouble(predicted), lagWindowSize);
-	}
-
-	/**
-	 * Gets the lag window size. It represents the prediction timeframe of this
-	 * network.
-	 * 
-	 * @return the lag window size
-	 */
-	public int getLagWindowSize() {
-		return lagWindowSize;
+		return predictionsPerLead;
 	}
 
 	/**
@@ -102,8 +94,21 @@ public class Predictor {
 		return method;
 	}
 
-	@Override
-	public String toString() {
-		return "PvPredictor [lagWindowSize=" + lagWindowSize + "]";
+	/**
+	 * Gets the Normalizer.
+	 * 
+	 * @return the Normalizer
+	 */
+	public Normalizer getNormalizer() {
+		return normalizer;
+	}
+	
+	/**
+	 * Gets the lag window size. It represents the number of past values in the input vector for the machine learning method.
+	 * 
+	 * @return the lag window size.
+	 */	
+	public int getLagWindowSize() {
+		return lagWindowSize;
 	}
 }

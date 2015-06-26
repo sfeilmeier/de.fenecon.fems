@@ -7,6 +7,8 @@
  */
 package de.fenecon.fems.helper;
 
+import java.util.concurrent.ConcurrentSkipListSet;
+
 /**
  * General definition of a {@link PredictionAgent}
  * 
@@ -21,7 +23,7 @@ public interface PredictionAgent extends Comparable<PredictionAgent> {
 	 *            the timestamp
 	 * @return the best prediction
 	 */
-	public Prediction getBestPredictionAtTimestamp(Long timestamp);
+	public Prediction getBestPredictionAtTimestamp(long timestamp);
 
 	/**
 	 * Get the field descriptor of this agent.
@@ -35,8 +37,8 @@ public interface PredictionAgent extends Comparable<PredictionAgent> {
 	 * 
 	 * @param timestamp
 	 *            the timestamp
-	 * @return the predictions
+	 * @return the set of predictions or empty set
 	 */
-	public Predictions getPredictionsAtTimestamp(Long timestamp);
+	public ConcurrentSkipListSet<Prediction> getPredictionsAtTimestamp(long timestamp);
 
 }

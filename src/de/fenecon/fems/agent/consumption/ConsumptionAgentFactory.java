@@ -26,6 +26,6 @@ public class ConsumptionAgentFactory extends PredictionAgentFactory {
 	 *             if no valid {@link ConsumptionAgent} could be created.
 	 */
 	public static ConsumptionAgent create(ConsumptionField field) throws Exception {
-		return new ConsumptionAgentImpl(field, getPredictors(field));
+		return new ConsumptionAgentImpl(field, getPredictor(field));
 	}
 }

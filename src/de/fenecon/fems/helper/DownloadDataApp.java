@@ -9,7 +9,7 @@ package de.fenecon.fems.helper;
 
 import java.io.FileWriter;
 import java.io.IOException;
-import java.util.LinkedList;
+import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.SortedMap;
@@ -25,6 +25,7 @@ import org.joda.time.DateTimeZone;
 
 import de.fenecon.fems.FemsConstants;
 import de.fenecon.fems.FemsTools;
+import de.fenecon.fems.agent.source.pv.PvField;
 
 /**
  * Helper App to generate a CSV file from the FENECON Online-Monitoring InfluxDB
@@ -50,8 +51,8 @@ public class DownloadDataApp {
 		Field[] fields = new Field[] { FemsConstants.PV1, FemsConstants.PV2, FemsConstants.CONSUMPTION_PHASE1,
 				FemsConstants.CONSUMPTION_PHASE2, FemsConstants.CONSUMPTION_PHASE3 };
 		String fems = FemsConstants.FEMS_NAME;
-		String influxdbUser = args[1];
-		String influxdbPassword = args[2];
+		String influxdbUser = args[0];
+		String influxdbPassword = args[1];
 
 		d.start(fems, influxdbUser, influxdbPassword, fields, fromDate, toDate);
 	}
@@ -99,22 +100,25 @@ public class DownloadDataApp {
 		List<Serie> series = influxDB.query(fems, query, TimeUnit.SECONDS);
 
 		// Write to internal HashMap to get rid of double entries by influxdb
-		SortedMap<Long, Double[]> data = new TreeMap<Long, Double[]>();
-		List<String> headers = new LinkedList<String>();
+		SortedMap<Long, HashMap<Field, Double>> data = new TreeMap<Long, HashMap<Field, Double>>();
 		for (Serie serie : series) {
+			Field thisField = null;
 			for (Field field : fields) {
 				if (field.getTechnicalName().equals(serie.getName())) {
-					headers.add(field.getName());
+					thisField = field;
 				}
 			}
-			int colIndex = headers.size() - 1;
+			assert thisField != null;
+
 			List<Map<String, Object>> rows = serie.getRows();
 			for (Map<String, Object> row : rows) {
 				Long timestamp = ((Double) row.get("time")).longValue();
-				data.putIfAbsent(timestamp, new Double[fields.length]);
-				Double[] dataRow = data.get(timestamp);
-				if (dataRow[colIndex] == null) {
-					dataRow[colIndex] = (Double) row.get("mean");
+				data.putIfAbsent(timestamp, new HashMap<Field, Double>());
+				HashMap<Field, Double> valuePerField = data.get(timestamp);
+				if (valuePerField.get(thisField) == null) {
+					Double value = (Double) row.get("mean");
+					value = processData(timestamp, thisField, value);
+					valuePerField.put(thisField, value);
 				}
 			}
 		}
@@ -122,21 +126,50 @@ public class DownloadDataApp {
 		try (CSVPrinter csvFilePrinter = new CSVPrinter(new FileWriter(FemsTools.getCsvPath(fems).toFile()),
 				FemsConstants.CSV_FORMAT)) {
 			csvFilePrinter.print("timestamp");
-			for (String header : headers) {
-				csvFilePrinter.print(header);
+			for (Field field : fields) {
+				csvFilePrinter.print(field.getName());
 			}
 			csvFilePrinter.println();
 			for (Long timestamp : data.keySet()) {
-				Double[] dataRow = data.get(timestamp);
-				if (dataRow[1] != null) { // ignore null
-					csvFilePrinter.print(timestamp);
-					for (Double datafield : dataRow) {
-						csvFilePrinter.print(datafield);
+				csvFilePrinter.print(timestamp);
+				HashMap<Field, Double> valuePerField = data.get(timestamp);
+				for (Field field : fields) {
+					Double value = valuePerField.get(field);
+					if (value != null) {
+						csvFilePrinter.print(value);
+					} else {
+						// TODO: here we simply replace null with 0.; better: interpolation
+						csvFilePrinter.print(0.);
 					}
-					csvFilePrinter.println();
 				}
+				csvFilePrinter.println();
 			}
 		}
 		;
+	}
+
+	/**
+	 * Process data values, e.g. to clean it
+	 * 
+	 * @param timestamp
+	 *            the timestamp
+	 * @param field
+	 *            the field of this value
+	 * @param value
+	 *            the value
+	 * @return the cleaned value or null
+	 */
+	private Double processData(Long timestamp, Field field, Double value) {
+		if (value == null)
+			return null; // replace null with 0.
+		if (field instanceof PvField) {
+			DateTime date = FemsTools.timestampToDateTime(timestamp);
+			int hourOfDay = date.getHourOfDay(); // from 0 to 23
+			if (hourOfDay < 6 || hourOfDay > 20)
+				return 0.; // return 0 for PV data in the night
+			if ((hourOfDay < 9 || hourOfDay > 17) && value < 65)
+				return 0.; // return 0 for wrong data in morning/evening
+		}
+		return value;
 	}
 }

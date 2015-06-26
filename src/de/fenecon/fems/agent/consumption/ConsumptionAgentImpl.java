@@ -7,8 +7,6 @@
  */
 package de.fenecon.fems.agent.consumption;
 
-import java.util.Set;
-
 import de.fenecon.fems.helper.PredictionAgentImpl;
 import de.fenecon.fems.helper.Predictor;
 
@@ -29,10 +27,10 @@ public class ConsumptionAgentImpl extends PredictionAgentImpl implements Consump
 	 * @param field
 	 *            the field identifier of this consumption
 	 * @param predictors
-	 *            the predictors used by this agent
+	 *            the predictor used by this agent
 	 */
-	public ConsumptionAgentImpl(ConsumptionField field, Set<Predictor> predictors) {
-		super(predictors);
+	public ConsumptionAgentImpl(ConsumptionField field, Predictor predictor) {
+		super(predictor);
 		this.field = field;
 	}
 

@@ -63,7 +63,19 @@ public class FemsTools {
 	 * @return the formatted timestamp
 	 */
 	public static String timestampToString(long timestamp) {
-		DateTime date = new DateTime(timestamp * 1000, DateTimeZone.UTC).toDateTime(FemsConstants.LOCAL_TIMEZONE);
+		DateTime date = timestampToDateTime(timestamp);
 		return date.toString("dd.MM.y HH:mm");
+	}
+	
+	/**
+	 * Converts a timestamp to a DateTime object in the local timezone.
+	 * 
+	 * @param timestamp
+	 *            the timestamp
+	 * @return the DateTime object
+	 */
+	public static DateTime timestampToDateTime(long timestamp) {
+		DateTime date = new DateTime(timestamp * 1000, DateTimeZone.UTC).toDateTime(FemsConstants.LOCAL_TIMEZONE);
+		return date;
 	}
 }

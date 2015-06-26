@@ -46,8 +46,8 @@ public class ProHybridSimulator {
 			try {
 				Map.Entry<Long, HashMap<Field, Double>> entry = cacheMap.pollFirstEntry();
 				long timestamp = entry.getKey();
-				FemsConstants.CURRENT_TIMESTAMP = timestamp; // Simulation
-																// Timestamp
+				// Simulation Timestamp
+				FemsConstants.CURRENT_TIMESTAMP = timestamp; 
 				for (EssListener listener : listeners) {
 					Double value = entry.getValue().get(listener.getField());
 					if (value != null) {
@@ -71,8 +71,8 @@ public class ProHybridSimulator {
 	 */
 	public ProHybridSimulator(TreeMap<Long, HashMap<Field, Double>> cacheMap) {
 		this.cacheMap = cacheMap;
-		scheduledFuture = scheduler.scheduleAtFixedRate(simulator, 0, FemsConstants.POLLING_TIME_SECONDS,
-				TimeUnit.SECONDS);
+		scheduledFuture = scheduler.scheduleAtFixedRate(simulator, 0, FemsConstants.POLLING_TIME_MILLISECONDS,
+				TimeUnit.MILLISECONDS);
 	}
 
 	/**

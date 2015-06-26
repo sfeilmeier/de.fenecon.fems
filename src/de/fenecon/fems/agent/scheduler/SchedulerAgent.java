@@ -7,6 +7,9 @@
  */
 package de.fenecon.fems.agent.scheduler;
 
+import java.io.FileWriter;
+import java.io.IOException;
+import java.nio.file.Paths;
 import java.util.Map;
 import java.util.Map.Entry;
 import java.util.TreeMap;
@@ -15,6 +18,8 @@ import java.util.concurrent.ConcurrentSkipListSet;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.TimeUnit;
+
+import org.apache.commons.csv.CSVPrinter;
 
 import de.fenecon.fems.FemsConstants;
 import de.fenecon.fems.FemsTools;
@@ -43,15 +48,50 @@ public class SchedulerAgent {
 	private final ConcurrentSkipListSet<ConsumptionAgent> consumptionAgents = new ConcurrentSkipListSet<ConsumptionAgent>();
 	/** The list of registered {@link LoadAgent}s */
 	private final ConcurrentSkipListSet<LoadAgent> loadAgents = new ConcurrentSkipListSet<LoadAgent>();
-	private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
-
 	/** The list of registered {@link SourceAgent}s per {@link SourceCategory} */
 	private final ConcurrentSkipListMap<SourceCategory, ConcurrentSkipListSet<PredictionAgent>> sourceAgents = new ConcurrentSkipListMap<SourceCategory, ConcurrentSkipListSet<PredictionAgent>>();
+	/** The Executor service for the actual Scheduler Agent worker */
+	private final ScheduledExecutorService scheduler = Executors.newScheduledThreadPool(1);
 
 	/**
 	 * Worker runnable for SchedulerAgent
 	 */
 	private Runnable worker = new Runnable() {
+		@Override
+		public void run() {
+			try {
+				// Set the current timestamp for simulation purposes
+				long currentTimestamp = FemsTools.getCurrentRoundedUtcTimestamp();
+
+				// Get the sourcePredictions from registered SourceAgents
+				TreeMap<Long, TreeMap<SourceCategory, Prediction>> sourcePredictions = getSourcePredictions(currentTimestamp);
+				// printSourcePredictions(sourcePredictions, currentTimestamp);
+
+				// Get the consumptionPredictions from registered
+				// ConsumptionAgents
+				TreeMap<Long, TreeMap<ConsumptionField, Prediction>> consumptionPredictions = getConsumptionPredictions(currentTimestamp);
+				//printConsumptionPredictions(consumptionPredictions, currentTimestamp);
+
+				// Copy data to a new Map for debug purposes
+				refreshFieldsPerTimestamp(currentTimestamp);
+				
+				// Create a plan with the predicted available power per
+				// timestamp
+				TreeMap<Long, TreeMap<SourceCategory, Double[]>> powerPredictions = getPowerPredictions(
+						sourcePredictions, consumptionPredictions, currentTimestamp);
+				// printPowerPredictions(powerPredictions, currentTimestamp);
+
+				// Create the load schedule
+				TreeMap<Long, ConcurrentSkipListMap<LoadAgent, LoadAction>> schedule = createSchedule(powerPredictions,
+						currentTimestamp);
+				// printSchedule(schedule, currentTimestamp);
+
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+		
+		
 		/**
 		 * Creates the schedule for {@link LoadAgent}s.
 		 * 
@@ -192,16 +232,16 @@ public class SchedulerAgent {
 
 				for (Map.Entry<SourceCategory, ConcurrentSkipListSet<PredictionAgent>> categoryAgents : sourceAgents
 						.entrySet()) {
-					float sumLagWindowSize = 0f;
+					float sumLeadWindowSize = 0f;
 					double sumValue = 0.;
 					for (PredictionAgent agent : categoryAgents.getValue()) {
 						Prediction prediction = agent.getBestPredictionAtTimestamp(timestamp);
 						if (prediction != null) {
-							sumLagWindowSize += prediction.getLagWindowSize();
+							sumLeadWindowSize += prediction.getLeadWindowSize();
 							sumValue += prediction.getValue();
 						}
 					}
-					predictionsPerTimestamp.put(categoryAgents.getKey(), new Prediction(sumValue, sumLagWindowSize
+					predictionsPerTimestamp.put(categoryAgents.getKey(), new Prediction(sumValue, sumLeadWindowSize
 							/ categoryAgents.getValue().size()));
 				}
 
@@ -334,46 +374,17 @@ public class SchedulerAgent {
 				System.out.println(line.toString());
 			}
 		}
-
-		@Override
-		public void run() {
-			try {
-				// Set the current timestamp for simulation purposes
-				long currentTimestamp = FemsTools.getCurrentRoundedUtcTimestamp();
-
-				// Get the sourcePredictions from registered SourceAgents
-				TreeMap<Long, TreeMap<SourceCategory, Prediction>> sourcePredictions = getSourcePredictions(currentTimestamp);
-				/* printSourcePredictions(sourcePredictions, currentTimestamp); */
-
-				// Get the consumptionPredictions from registered
-				// ConsumptionAgents
-				TreeMap<Long, TreeMap<ConsumptionField, Prediction>> consumptionPredictions = getConsumptionPredictions(currentTimestamp);
-				// printConsumptionPredictions(consumptionPredictions,
-				// currentTimestamp);
-
-				// Create a plan with the predicted available power per
-				// timestamp
-				TreeMap<Long, TreeMap<SourceCategory, Double[]>> powerPredictions = getPowerPredictions(
-						sourcePredictions, consumptionPredictions, currentTimestamp);
-				// printPowerPredictions(powerPredictions, currentTimestamp);
-
-				// Create the load schedule
-				TreeMap<Long, ConcurrentSkipListMap<LoadAgent, LoadAction>> schedule = createSchedule(powerPredictions,
-						currentTimestamp);
-				// printSchedule(schedule, currentTimestamp);
-
-			} catch (Exception e) {
-				e.printStackTrace();
-			}
-		}
 	};
 
 	/**
 	 * Creates a SchedulerAgent and starts its worker runnable.
 	 */
 	public SchedulerAgent() {
-		scheduler.scheduleAtFixedRate(worker, FemsConstants.POLLING_TIME_SECONDS / 2,
-				FemsConstants.POLLING_TIME_SECONDS, TimeUnit.SECONDS);
+		scheduler.scheduleAtFixedRate(worker, FemsConstants.POLLING_TIME_MILLISECONDS / 2,
+				FemsConstants.POLLING_TIME_MILLISECONDS, TimeUnit.MILLISECONDS);
+
+		scheduler.scheduleAtFixedRate(writeCsvFile, FemsConstants.POLLING_TIME_MILLISECONDS * 2,
+				FemsConstants.POLLING_TIME_MILLISECONDS * 100, TimeUnit.MILLISECONDS);
 	}
 
 	/**
@@ -412,4 +423,95 @@ public class SchedulerAgent {
 		ConcurrentSkipListSet<PredictionAgent> currentSourceAgents = sourceAgents.get(sourceCategory);
 		currentSourceAgents.add(agent);
 	}
+
+	private ConcurrentSkipListMap<Long, ConcurrentSkipListMap<Field, ConcurrentSkipListMap<Integer, Double>>> fieldsPerTimestamp = new ConcurrentSkipListMap<Long, ConcurrentSkipListMap<Field, ConcurrentSkipListMap<Integer, Double>>>();
+
+	private void refreshFieldsPerTimestamp(long currentTimestamp) {
+		for (long timestamp = currentTimestamp; timestamp <= currentTimestamp + FemsConstants.SLICE_SECONDS
+				* FemsConstants.MAX_PREDICTION_WINDOW; timestamp += FemsConstants.SLICE_SECONDS) {
+			fieldsPerTimestamp.putIfAbsent(timestamp,
+					new ConcurrentSkipListMap<Field, ConcurrentSkipListMap<Integer, Double>>());
+			ConcurrentSkipListMap<Field, ConcurrentSkipListMap<Integer, Double>> leadsPerField = fieldsPerTimestamp
+					.get(timestamp);
+
+			for (ConcurrentSkipListSet<PredictionAgent> agents : sourceAgents.values()) {
+				for (PredictionAgent agent : agents) {
+					leadsPerField.putIfAbsent(agent.getField(), new ConcurrentSkipListMap<Integer, Double>());
+					ConcurrentSkipListMap<Integer, Double> valuesPerLead = leadsPerField.get(agent.getField());
+
+					ConcurrentSkipListSet<Prediction> predictions = agent.getPredictionsAtTimestamp(timestamp);
+					for (Prediction prediction : predictions) {
+						valuesPerLead.putIfAbsent((int) prediction.getLeadWindowSize(), prediction.getValue());
+					}
+				}
+			}
+			for (ConsumptionAgent agent : consumptionAgents) {
+				leadsPerField.putIfAbsent(agent.getField(), new ConcurrentSkipListMap<Integer, Double>());
+				ConcurrentSkipListMap<Integer, Double> valuesPerLead = leadsPerField.get(agent.getField());
+
+				ConcurrentSkipListSet<Prediction> predictions = agent.getPredictionsAtTimestamp(timestamp);
+				for (Prediction prediction : predictions) {
+					valuesPerLead.putIfAbsent((int) prediction.getLeadWindowSize(), prediction.getValue());
+				}
+			}
+		}
+	}
+
+	private Runnable writeCsvFile = new Runnable() {
+		public void run() {
+			try {
+				// Source Agents
+				for (Map.Entry<SourceCategory, ConcurrentSkipListSet<PredictionAgent>> agentPerCategory : sourceAgents
+						.entrySet()) {
+					for (PredictionAgent agent : agentPerCategory.getValue()) {
+						Field field = agent.getField();
+						printFieldCsvFile(field);
+					}
+				}
+				// Consumption Agents
+				for (PredictionAgent agent : consumptionAgents) {
+					Field field = agent.getField();
+					printFieldCsvFile(field);
+				}
+			} catch (Exception e) {
+				e.printStackTrace();
+			}
+		}
+
+		private void printFieldCsvFile(Field field) throws IOException {
+			String time = FemsTools.timestampToString(FemsConstants.CURRENT_TIMESTAMP);
+			try (CSVPrinter csvFilePrinter = new CSVPrinter(new FileWriter(Paths
+					.get(FemsConstants.FILESPATH, "scheduler", field + "_" + time.replace(":", ".") + ".csv")
+					.toAbsolutePath().toString()), FemsConstants.CSV_FORMAT)) {
+				// Print header
+				csvFilePrinter.print("Timestamp");
+				csvFilePrinter.print("Ideal");
+				for (int lead = 1; lead <= FemsConstants.MAX_PREDICTION_WINDOW; lead++) {
+					csvFilePrinter.print((FemsConstants.SLICE_SECONDS * lead / 60) + " Minutes");
+				}
+				csvFilePrinter.println();
+
+				// Print lines
+				for (Map.Entry<Long, ConcurrentSkipListMap<Field, ConcurrentSkipListMap<Integer, Double>>> fieldPerTimestamp : fieldsPerTimestamp
+						.entrySet()) {
+					csvFilePrinter.print(FemsTools.timestampToString(fieldPerTimestamp.getKey()));
+					for (Map.Entry<Field, ConcurrentSkipListMap<Integer, Double>> leadsPerField : fieldPerTimestamp
+							.getValue().entrySet()) {
+						if (leadsPerField.getKey() != field)
+							continue;
+						ConcurrentSkipListMap<Integer, Double> valuesPerLead = leadsPerField.getValue();
+						for (int lead = 0; lead <= FemsConstants.MAX_PREDICTION_WINDOW; lead++) {
+							Double value = valuesPerLead.get(lead);
+							if (value == null) {
+								csvFilePrinter.print("");
+							} else {
+								csvFilePrinter.print(String.format("%.2f", value));
+							}
+						}
+					}
+					csvFilePrinter.println();
+				}
+			}
+		}
+	};
 }

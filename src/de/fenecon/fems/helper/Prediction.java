@@ -8,17 +8,17 @@
 package de.fenecon.fems.helper;
 
 /**
- * Holds a prediction value and its lag size, giving an idea about the accuracy
- * of the prediction. The higher the lag, the worse the prediction.
+ * Holds a prediction value and its lead window size, giving an idea about the accuracy
+ * of the prediction. The higher the lead, the worse the prediction.
  * 
  * @author Stefan Feilmeier
  */
 public class Prediction implements Comparable<Prediction> {
 	/**
-	 * The lag window size of this prediction. If the prediction was summed up,
+	 * The lead window size of this prediction. If the prediction was summed up,
 	 * this is an average of all base predictions.
 	 */
-	private final float lagWindowSize;
+	private final float leadWindowSize;
 	/** The value of this prediction */
 	private final double value;
 
@@ -27,29 +27,29 @@ public class Prediction implements Comparable<Prediction> {
 	 * 
 	 * @param value
 	 *            the value
-	 * @param lagWindowSize
-	 *            the lag window size
+	 * @param leadWindowSize
+	 *            the lead window size
 	 */
-	public Prediction(double value, float lagWindowSize) {
+	public Prediction(double value, float leadWindowSize) {
 		this.value = value;
-		this.lagWindowSize = lagWindowSize;
+		this.leadWindowSize = leadWindowSize;
 	}
 
 	/**
-	 * Compare the accuracy (lag window size) of two {@link Prediction}s.
+	 * Compare the accuracy (lead window size) of two {@link Prediction}s.
 	 */
 	@Override
 	public int compareTo(Prediction o) {
-		return (int) (lagWindowSize - o.lagWindowSize);
+		return (int) (leadWindowSize - o.leadWindowSize);
 	}
 
 	/**
-	 * Gets the lag window size. Smaller is more accurate.
+	 * Gets the lead window size. Smaller is more accurate.
 	 * 
-	 * @return the lag window size
+	 * @return the lead window size
 	 */
-	public float getLagWindowSize() {
-		return lagWindowSize;
+	public float getLeadWindowSize() {
+		return leadWindowSize;
 	}
 
 	/**
@@ -63,6 +63,6 @@ public class Prediction implements Comparable<Prediction> {
 
 	@Override
 	public String toString() {
-		return String.format("[Value=%.2f, Lag=%.1f]", value, lagWindowSize);
+		return String.format("[Value=%.2f, Lead=%.1f]", value, leadWindowSize);
 	}
 }

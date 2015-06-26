@@ -7,8 +7,6 @@
  */
 package de.fenecon.fems.agent.source.pv;
 
-import java.util.Set;
-
 import de.fenecon.fems.agent.source.SourceAgent;
 import de.fenecon.fems.agent.source.SourceCategory;
 import de.fenecon.fems.helper.Field;
@@ -29,11 +27,11 @@ public class PvAgent extends PredictionAgentImpl implements SourceAgent {
 	 * 
 	 * @param field
 	 *            the field of this pv installation
-	 * @param predictors
-	 *            the predictors for this agent
+	 * @param predictor
+	 *            the predictor for this agent
 	 */
-	public PvAgent(PvField field, Set<Predictor> predictors) {
-		super(predictors);
+	public PvAgent(PvField field, Predictor predictor) {
+		super(predictor);
 		this.field = field;
 	}
 

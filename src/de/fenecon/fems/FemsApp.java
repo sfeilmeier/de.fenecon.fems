@@ -67,7 +67,5 @@ public class FemsApp {
 		proHybridSim.addListener(consumptionPh1Agent);
 		proHybridSim.addListener(consumptionPh2Agent);
 		proHybridSim.addListener(consumptionPh3Agent);
-
-		// Encog.getInstance().shutdown();
 	}
 }

@@ -25,6 +25,6 @@ public class PvAgentFactory extends PredictionAgentFactory {
 	 *             if no valid {@link PvAgent} could be created.
 	 */
 	public static PvAgent create(PvField field) throws Exception {
-		return new PvAgent(field, getPredictors(field));
+		return new PvAgent(field, getPredictor(field));
 	}
 }

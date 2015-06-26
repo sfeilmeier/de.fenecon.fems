@@ -7,12 +7,13 @@
  */
 package de.fenecon.fems.agent.source.grid;
 
+import java.util.concurrent.ConcurrentSkipListSet;
+
 import de.fenecon.fems.agent.source.SourceAgent;
 import de.fenecon.fems.agent.source.SourceCategory;
 import de.fenecon.fems.helper.Field;
 import de.fenecon.fems.helper.Prediction;
 import de.fenecon.fems.helper.PredictionAgent;
-import de.fenecon.fems.helper.Predictions;
 
 /**
  * Defines the power grid as a source of electricity.
@@ -44,7 +45,7 @@ public class GridAgent implements SourceAgent {
 	 * @return the infinite prediction
 	 */
 	@Override
-	public Prediction getBestPredictionAtTimestamp(Long timestamp) {
+	public Prediction getBestPredictionAtTimestamp(long timestamp) {
 		return new Prediction(Double.MAX_VALUE, 0);
 	}
 
@@ -54,8 +55,10 @@ public class GridAgent implements SourceAgent {
 	}
 
 	@Override
-	public Predictions getPredictionsAtTimestamp(Long timestamp) {
-		return new Predictions(getBestPredictionAtTimestamp(timestamp));
+	public ConcurrentSkipListSet<Prediction> getPredictionsAtTimestamp(long timestamp) {
+		ConcurrentSkipListSet<Prediction> predictions = new ConcurrentSkipListSet<Prediction>();
+		predictions.add(getBestPredictionAtTimestamp(timestamp));
+		return predictions;
 	}
 
 	/**
