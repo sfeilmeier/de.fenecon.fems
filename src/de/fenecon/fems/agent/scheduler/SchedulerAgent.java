@@ -84,7 +84,7 @@ public class SchedulerAgent {
 				// Create the load schedule
 				TreeMap<Long, ConcurrentSkipListMap<LoadAgent, LoadAction>> schedule = createSchedule(powerPredictions,
 						currentTimestamp);
-				// printSchedule(schedule, currentTimestamp);
+				//printSchedule(schedule, currentTimestamp);
 
 			} catch (Exception e) {
 				e.printStackTrace();

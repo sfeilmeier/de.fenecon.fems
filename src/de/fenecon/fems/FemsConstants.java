@@ -33,13 +33,13 @@ public class FemsConstants {
 	 * The maximum number of predictions. (This value multiplied with the
 	 * SLICE_SECONDS is the total prediction timeframe in seconds.)
 	 */
-	public static final int MAX_PREDICTION_WINDOW = 12;
+	public static final int MAX_PREDICTION_WINDOW = 36;
 
 	/**
 	 * The simulated polling time for data from the storage system in seconds.
 	 * In a real application this is equal to SLICE_SECONDS
 	 */
-	public static final int POLLING_TIME_MILLISECONDS = 100; //
+	public static final int POLLING_TIME_MILLISECONDS = 200;
 
 	/** The format for all CSV-files */
 	public final static CSVFormat CSV_FORMAT = CSVFormat.DEFAULT;
